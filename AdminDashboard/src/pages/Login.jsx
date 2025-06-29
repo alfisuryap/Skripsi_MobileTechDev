@@ -38,6 +38,11 @@ export default function Login({ login }) {
         onSubmit={handleSubmit}
         className="bg-white/90 backdrop-blur p-8 rounded-2xl shadow-xl w-full max-w-md"
       >
+        <img
+                        src="/Logo2.jpg"
+                        alt="Logo Admin"
+                        className="w-full h-auto object-contain rounded-lg"
+                    />
         <h1 className="text-2xl font-bold mb-6 text-center text-gray-800">Login Admin</h1>
 
         <div className="space-y-4">

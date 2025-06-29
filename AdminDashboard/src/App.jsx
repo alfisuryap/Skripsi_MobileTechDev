@@ -73,15 +73,15 @@ function App() {
       {isLoggedIn ? (
         <Routes>
           <Route path="/dashboard" element={<Dashboard logout={logout} />} />
-          <Route path="/input-hra" element={<InputHRA />} />
-          <Route path="/master-data/proses" element={<Proses />} />
-          <Route path="/master-data/sub-proses" element={<SubProses />} />
-          <Route path="/master-data/aktivitas" element={<Aktivitas />} />
-          <Route path="/master-data/sub-aktivitas" element={<SubAktivitas />} />
-          <Route path="/master-data/manajemen-operasi" element={<ManajemenOperasi />} />
-          <Route path="/master-data/bahaya-kesehatan" element={<BahayaKesehatan />} />
-          <Route path="/master-data/risiko-kesehatan" element={<RisikoKesehatan />} />
-          <Route path="/master-data/hierarki" element={<Hierarki />} />
+          <Route path="/input-hra" element={<InputHRA Logout={logout} />} />
+          <Route path="/master-data/proses" element={<Proses Logout={logout} />} />
+          <Route path="/master-data/sub-proses" element={<SubProses Logout={logout} />} />
+          <Route path="/master-data/aktivitas" element={<Aktivitas Logout={logout} />} />
+          <Route path="/master-data/sub-aktivitas" element={<SubAktivitas Logout={logout} />} />
+          <Route path="/master-data/manajemen-operasi" element={<ManajemenOperasi Logout={logout} />} />
+          <Route path="/master-data/bahaya-kesehatan" element={<BahayaKesehatan Logout={logout} />} />
+          <Route path="/master-data/risiko-kesehatan" element={<RisikoKesehatan Logout={logout} />} />
+          <Route path="/master-data/hierarki" element={<Hierarki Logout={logout} />} />
           <Route path="*" element={<Navigate to="/dashboard" />} />
         </Routes>
       ) : (
