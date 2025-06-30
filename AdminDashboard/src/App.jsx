@@ -14,6 +14,7 @@ import SubAktivitas from "./pages/master-data/SubAktivitas";
 import ManajemenOperasi from "./pages/master-data/ManajemenOperasi";
 import BahayaKesehatan from "./pages/master-data/BahayaKesehatan";
 import RisikoKesehatan from "./pages/master-data/RisikoKesehatan";
+import TingkatBahaya from "./pages/master-data/TingkatBahaya";
 import Hierarki from "./pages/master-data/Hierarki";
 import Login from "./pages/Login";
 
@@ -81,6 +82,7 @@ function App() {
           <Route path="/master-data/manajemen-operasi" element={<ManajemenOperasi Logout={logout} />} />
           <Route path="/master-data/bahaya-kesehatan" element={<BahayaKesehatan Logout={logout} />} />
           <Route path="/master-data/risiko-kesehatan" element={<RisikoKesehatan Logout={logout} />} />
+          <Route path="/master-data/tingkat-bahaya" element={<TingkatBahaya Logout={logout} />} />
           <Route path="/master-data/hierarki" element={<Hierarki Logout={logout} />} />
           <Route path="*" element={<Navigate to="/dashboard" />} />
         </Routes>
