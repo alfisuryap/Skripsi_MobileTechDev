@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   TrendingUp,
   AlignLeft,
+  User,
 } from "lucide-react";
 
 export default function Sidebar({ onLogoutClick }) {
@@ -28,9 +29,6 @@ export default function Sidebar({ onLogoutClick }) {
     "/master-data/aktivitas",
     "/master-data/sub-aktivitas",
     "/master-data/manajemen-operasi",
-    "/master-data/bahaya-kesehatan",
-    "/master-data/risiko-kesehatan",
-    "/master-data/tingkat-bahaya",
     "/master-data/hierarki",
   ];
 
@@ -42,17 +40,33 @@ export default function Sidebar({ onLogoutClick }) {
       setOpenMasterData(true);
     }
   }, [location.pathname]);
+  
+
+  //Settings
+   const isOpenPaths = (subpaths) =>
+    subpaths.some((p) => location.pathname.startsWith(p));
+
+  const settingPaths = [
+    "/settings/akun-management",
+  ];
+
+  const [openSettings, setOpenSettings] = useState(isOpenPaths(settingPaths));
+
+  // Otomatis buka menu Master Data kalau sedang berada di dalam pathnya
+  useEffect(() => {
+    if (isOpenPaths(settingPaths)) {
+      setOpenSettings(true);
+    }
+  }, [location.pathname]);
 
   const getMenuItemClass = (path) =>
-    `flex items-center gap-3 px-4 py-2 rounded hover:bg-indigo-50 ${
-      isActive(path) ? "bg-indigo-100 text-indigo-700 font-semibold" : "text-gray-700"
+    `flex items-center gap-3 px-4 py-2 rounded hover:bg-indigo-50 ${isActive(path) ? "bg-indigo-100 text-indigo-700 font-semibold" : "text-gray-700"
     }`;
 
   const getSubMenuClass = (path) =>
-    `flex items-center gap-2 px-2 py-1 rounded ${
-      isActive(path)
-        ? "bg-indigo-100 text-indigo-700 font-semibold"
-        : "text-gray-700 hover:bg-indigo-50"
+    `flex items-center gap-2 px-2 py-1 rounded ${isActive(path)
+      ? "bg-indigo-100 text-indigo-700 font-semibold"
+      : "text-gray-700 hover:bg-indigo-50"
     }`;
 
   return (
@@ -82,11 +96,10 @@ export default function Sidebar({ onLogoutClick }) {
           {/* Master Data Dropdown */}
           <button
             onClick={() => setOpenMasterData(!openMasterData)}
-            className={`w-full flex items-center justify-between px-4 py-2 rounded transition-colors ${
-              isMasterPath(masterPaths)
-                ? "bg-indigo-100 text-indigo-700 font-semibold"
-                : "bg-transparent text-gray-700 hover:bg-indigo-50"
-            }`}
+            className={`w-full flex items-center justify-between px-4 py-2 rounded transition-colors ${isMasterPath(masterPaths)
+              ? "bg-indigo-100 text-indigo-700 font-semibold"
+              : "bg-transparent text-gray-700 hover:bg-indigo-50"
+              }`}
           >
             <span className="flex items-center gap-3">
               <Layers className="w-4 h-4" /> Master Data
@@ -120,29 +133,32 @@ export default function Sidebar({ onLogoutClick }) {
               >
                 <Settings className="w-4 h-4" /> Manajemen Operasi
               </Link>
-              <Link
-                to="/master-data/bahaya-kesehatan"
-                className={getSubMenuClass("/master-data/bahaya-kesehatan")}
-              >
-                <AlertTriangle className="w-4 h-4" /> Bahaya Kesehatan
-              </Link>
-              <Link
-                to="/master-data/risiko-kesehatan"
-                className={getSubMenuClass("/master-data/risiko-kesehatan")}
-              >
-                <Shield className="w-4 h-4" /> Risiko Kesehatan
-              </Link>
-              <Link
-                to="/master-data/tingkat-bahaya"
-                className={getSubMenuClass("/master-data/tingkat-bahaya")}
-              >
-                <TrendingUp className="w-4 h-4" /> Tingkat Bahaya
-              </Link>
-              <Link to="/master-data/hierarki" className={getSubMenuClass("/master-data/hierarki")}>
-                <Layers className="w-4 h-4" /> Hierarki
+            </div>
+          )}
+
+          {/* Settings */}
+          <button
+            onClick={() => setOpenSettings(!openSettings)}
+            className={`w-full flex items-center justify-between px-4 py-2 rounded transition-colors ${isOpenPaths(settingPaths)
+              ? "bg-indigo-100 text-indigo-700 font-semibold"
+              : "bg-transparent text-gray-700 hover:bg-indigo-50"
+              }`}
+          >
+            <span className="flex items-center gap-3">
+              <Settings className="w-4 h-4" /> Settings
+            </span>
+            {openSettings ? <ChevronDown /> : <ChevronRight />}
+          </button>
+
+          {openSettings && (
+            <div className="pl-10 space-y-1">
+              <Link to="/settings/akun-management" className={getSubMenuClass("/settings/akun-management")}>
+                <User className="w-4 h-4" /> Akun Management
               </Link>
             </div>
           )}
+
+          
         </nav>
 
         {/* Logout Button */}

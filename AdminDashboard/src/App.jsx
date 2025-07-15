@@ -12,10 +12,8 @@ import SubProses from "./pages/master-data/SubProses";
 import Aktivitas from "./pages/master-data/Aktivitas";
 import SubAktivitas from "./pages/master-data/SubAktivitas";
 import ManajemenOperasi from "./pages/master-data/ManajemenOperasi";
-import BahayaKesehatan from "./pages/master-data/BahayaKesehatan";
-import RisikoKesehatan from "./pages/master-data/RisikoKesehatan";
-import TingkatBahaya from "./pages/master-data/TingkatBahaya";
 import Hierarki from "./pages/master-data/Hierarki";
+import AkunManagement from "./pages/settings/AkunManagement";
 import Login from "./pages/Login";
 
 function App() {
@@ -80,10 +78,8 @@ function App() {
           <Route path="/master-data/aktivitas" element={<Aktivitas Logout={logout} />} />
           <Route path="/master-data/sub-aktivitas" element={<SubAktivitas Logout={logout} />} />
           <Route path="/master-data/manajemen-operasi" element={<ManajemenOperasi Logout={logout} />} />
-          <Route path="/master-data/bahaya-kesehatan" element={<BahayaKesehatan Logout={logout} />} />
-          <Route path="/master-data/risiko-kesehatan" element={<RisikoKesehatan Logout={logout} />} />
-          <Route path="/master-data/tingkat-bahaya" element={<TingkatBahaya Logout={logout} />} />
           <Route path="/master-data/hierarki" element={<Hierarki Logout={logout} />} />
+          <Route path="/settings/akun-management" element={<AkunManagement Logout={logout} />} />
           <Route path="*" element={<Navigate to="/dashboard" />} />
         </Routes>
       ) : (
