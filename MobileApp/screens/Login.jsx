@@ -1,53 +1,201 @@
 import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  ImageBackground,
+} from 'react-native';
 import { supabase } from '../config/supabase'
 import bcrypt from 'bcryptjs';
+import { Alert } from 'react-native';
+import Checkbox from 'expo-checkbox';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+console.log(">>> LoginScreen loaded");
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [keepSignedIn, setKeepSignedIn] = useState(false);
 
   const handleLogin = async () => {
-    const { data, error } = await supabase
-      .from('AkunManagement')
-      .select('*')
-      .eq('email', email)
-      .single();
-
-    if (error || !data) {
-      Alert.alert('Login gagal', 'Email tidak ditemukan');
+    if (!email || !password) {
+      Alert.alert('Validasi Gagal', 'Mohon isi email dan password');
       return;
     }
 
-    const match = await bcrypt.compare(password, data.password);
-    if (!match) {
-      Alert.alert('Login gagal', 'Password salah');
-      return;
-    }
+    try {
+      const { data, error } = await supabase
+        .from('AkunManagement')
+        .select('*')
+        .eq('email', email)
+        .single();
 
-    Alert.alert('Login berhasil', `Selamat datang, ${data.nama_lengkap}`);
-    // navigation.navigate('Home'); // setelah nanti ada home
+      if (error || !data) {
+        Alert.alert('Login gagal', 'Email tidak ditemukan');
+        return;
+      }
+
+      const match = await bcrypt.compare(password, data.password);
+      if (!match) {
+        Alert.alert('Login gagal', 'Password salah');
+        return;
+      }
+
+      Alert.alert('Login berhasil', `Selamat datang, ${data.nama_lengkap}`);
+
+      const now = new Date().getTime();
+      await AsyncStorage.setItem('login_timestamp', now.toString());
+      await AsyncStorage.setItem('user_email', email);
+      await AsyncStorage.setItem('user_nama', data.nama_lengkap);
+      console.log('>>> Simpan user_nama:', data.nama_lengkap);
+
+      if (keepSignedIn) {
+        await AsyncStorage.setItem('isLoggedIn', 'true');
+      } else {
+        await AsyncStorage.removeItem('isLoggedIn');
+      }
+
+      navigation.replace('MainTabs');
+    } catch (err) {
+      Alert.alert('Terjadi kesalahan', err.message);
+    }
   };
 
   return (
-    <View style={{ padding: 20, marginTop: 100 }}>
-      <Text style={{ fontSize: 24, marginBottom: 20 }}>Login</Text>
-      <TextInput
-        placeholder="Email"
-        onChangeText={setEmail}
-        value={email}
-        style={{ borderWidth: 1, marginBottom: 10, padding: 8 }}
-      />
-      <TextInput
-        placeholder="Password"
-        onChangeText={setPassword}
-        value={password}
-        secureTextEntry
-        style={{ borderWidth: 1, marginBottom: 20, padding: 8 }}
-      />
-      <TouchableOpacity onPress={handleLogin} style={{ backgroundColor: '#4F46E5', padding: 12, borderRadius: 6 }}>
-        <Text style={{ color: '#fff', textAlign: 'center' }}>Login</Text>
-      </TouchableOpacity>
-    </View>
+    <ImageBackground
+      source={require('../assets/BG_Login.png')}
+      style={styles.background}
+      resizeMode="cover"
+    >
+      <View style={styles.card}>
+        <Text style={styles.title}>Sign In</Text>
+        <Text style={styles.subtitle}>Please enter your email and password</Text>
+
+        <Text style={styles.label}>Email</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="name@mail.com"
+          keyboardType="email-address"
+          value={email}
+          onChangeText={setEmail}
+        />
+        <Text style={styles.helper}>Please input your email</Text>
+
+        <Text style={styles.label}>Password</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="**********"
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+        />
+        <Text style={styles.helper}>Please input your password</Text>
+
+        <TouchableOpacity style={styles.button} onPress={handleLogin}>
+          <Text style={styles.buttonText}>Sign In</Text>
+        </TouchableOpacity>
+
+        <View style={styles.checkboxContainer}>
+          <Checkbox
+            value={keepSignedIn}
+            onValueChange={setKeepSignedIn}
+          />
+          <Text style={styles.checkboxLabel}>Keep me signed in</Text>
+        </View>
+
+        <Image
+          source={require('../assets/logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
+        />
+      </View>
+    </ImageBackground>
   );
 }
+
+const styles = StyleSheet.create({
+  background: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: "#0A2A47",
+  },
+  card: {
+    width: '85%',
+    backgroundColor: 'white',
+    padding: 24,
+    borderRadius: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 2, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    elevation: 5,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#222',
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  label: {
+    alignSelf: 'flex-start',
+    fontSize: 14,
+    fontWeight: '600',
+    marginTop: 12,
+    color: '#333',
+  },
+  input: {
+    width: '100%',
+    height: 42,
+    borderColor: '#ccc',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    marginTop: 6,
+    backgroundColor: '#f9f9f9',
+  },
+  helper: {
+    fontSize: 12,
+    color: '#999',
+    alignSelf: 'flex-start',
+    marginBottom: 6,
+  },
+  button: {
+    backgroundColor: '#3478F6',
+    paddingVertical: 12,
+    borderRadius: 8,
+    width: '100%',
+    marginTop: 14,
+  },
+  buttonText: {
+    color: 'white',
+    textAlign: 'center',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 14,
+    alignSelf: 'flex-start',
+  },
+  checkboxLabel: {
+    marginLeft: 6,
+    color: '#333',
+  },
+  logo: {
+    width: 100,
+    height: 40,
+    marginTop: 24,
+  },
+});
