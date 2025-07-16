@@ -653,7 +653,7 @@ export default function InputHRA({ Logout }) {
                   <h3 className="bg-gray-200 font-bold px-3 py-1 uppercase">Nilai Risiko {tipe.replace("_", " ")}</h3>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-2">
                     <div>
-                      <label>Likelihood</label>
+                      <label>Likelihood </label>
                       {[1, 2, 3, 4, 5].map(val => (
                         <label key={val} className="flex gap-2 text-sm">
                           <input
@@ -669,6 +669,10 @@ export default function InputHRA({ Logout }) {
                                 val === 4 ? "Sekali / 6 Bulan" : "Berulang kali / 6 Bulan"}
                         </label>
                       ))}
+                      <div className="mt-3">
+                        <label>Nilai Likelihood</label>
+                        <input type="text" value={formData[`likelihood_${tipe}`]} readOnly className="w-full bg-gray-100 border px-3 py-2 rounded" />
+                      </div>
                     </div>
                     <div>
                       <label>Severity</label>
@@ -689,6 +693,10 @@ export default function InputHRA({ Logout }) {
                           }
                         </label>
                       ))}
+                      <div className="mt-3">
+                        <label>Nilai Severity</label>
+                        <input type="text" value={formData[`severity_${tipe}`]} readOnly className="w-full bg-gray-100 border px-3 py-2 rounded" />
+                      </div>
                     </div>
                     <div>
                       <label>Risk</label>
@@ -702,13 +710,13 @@ export default function InputHRA({ Logout }) {
                 </div>
               ))}
 
-              {/* === PENGENDALIAN === */}
+              {/* === Hierarki === */}
               <div>
-                <h3 className="bg-gray-200 font-bold px-3 py-1 uppercase">Pengendalian</h3>
+                <h3 className="bg-gray-200 font-bold px-3 py-1 uppercase">Hierarki</h3>
                 <div className="gap-4 mt-2">
                   <div>
                     <label>Kode Hierarki</label>
-                    <div className="grid grid-cols-4 gap-4">
+                    <div className="grid grid-cols-4 gap-4 bg-gray-100 border px-3 py-2 rounded">
                       {dropdowns.hierarki.map((h) => (
                         <label key={h.id} className="flex items-center gap-2">
                           <input
@@ -734,7 +742,11 @@ export default function InputHRA({ Logout }) {
                     </div>
                   </div>
                 </div>
+              </div>
 
+              {/* === PENGENDALIAN === */}
+              <div>
+                <h3 className="bg-gray-200 font-bold px-3 py-1 uppercase">Pengendalian</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
                   {["preventive", "detective", "mitigative"].map((t) => (
                     <div key={t}>
