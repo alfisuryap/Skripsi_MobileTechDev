@@ -56,19 +56,36 @@ export default function AkunManagement({ logout }) {
                 fetchAkun();
             }
         } else {
-            const hashedPassword = await bcrypt.hash(password, 10);
+            // 1. Register ke Supabase Auth
+            const { data: signUpData, error: signUpError } = await supabase.auth.admin.createUser({
+                email,
+                password,
+                email_confirm: true, // langsung aktif
+            });
 
-            const { error } = await supabase.from("AkunManagement").insert([
-                {
-                    nama_lengkap,
-                    email,
-                    password: hashedPassword,
-                    role,
-                },
-            ]);
+            if (signUpError) {
+                toast.error("Gagal membuat akun di Auth: " + signUpError.message);
+                return;
+            }
+
+            const userId = signUpData.user.id;
+
+            const { error } = await supabase
+                .from("AkunManagement")
+                .upsert(
+                    {
+                        nama_lengkap,
+                        email,
+                        role,
+                        password,
+                        user_id: userId,
+                    },
+                );
+
 
             if (error) {
-                toast.error("Gagal menambahkan akun");
+                toast.error("Gagal menyimpan akun ke database: " + error.message);
+                await supabase.auth.admin.deleteUser(userId);
             } else {
                 toast.success("Akun berhasil ditambahkan");
                 resetForm();
@@ -103,6 +120,29 @@ export default function AkunManagement({ logout }) {
             toast.error("Reset password gagal");
         } else {
             toast.success("Password berhasil direset ke '123456'");
+        }
+    };
+
+    const handleDelete = async (user) => {
+        if (!confirm(`Hapus akun ${user.nama_lengkap}?`)) return;
+
+        try {
+            // Hapus dari Supabase Auth
+            const { error: authError } = await supabase.auth.admin.deleteUser(user.user_id);
+            if (authError) throw authError;
+
+            // Hapus dari tabel AkunManagement (optional karena FK bisa auto delete)
+            const { error: dbError } = await supabase
+                .from("AkunManagement")
+                .delete()
+                .eq("user_id", user.user_id);
+
+            if (dbError) throw dbError;
+
+            toast.success("Akun berhasil dihapus");
+            fetchAkun(); // refresh data
+        } catch (err) {
+            toast.error("Gagal menghapus akun: " + err.message);
         }
     };
 
@@ -209,6 +249,13 @@ export default function AkunManagement({ logout }) {
                                                     className="text-yellow-600 hover:underline"
                                                 >
                                                     Reset Password
+                                                </button>
+                                                <button
+                                                    variant="destructive"
+                                                    onClick={() => handleDelete(user)}
+                                                    className="text-red-600 hover:underline"
+                                                >
+                                                    Hapus
                                                 </button>
                                             </td>
                                         </tr>

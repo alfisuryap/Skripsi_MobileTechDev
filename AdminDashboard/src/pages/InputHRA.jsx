@@ -414,7 +414,7 @@ export default function InputHRA({ Logout }) {
                       <tr key={item.id} className="text-center border-t">
                         <td className="border px-2 py-1">{item.Proses?.kode}</td>
                         <td className="border px-2 py-1">{item.Proses?.proses}</td>
-                        <td className="border px-2 py-1">{item.SubAktivitas?.kode}</td>
+                        <td className="border px-2 py-1">{item.SubProses?.kode}</td>
                         <td className="border px-2 py-1">{item.SubProses?.sub_proses}</td>
                         <td className="border px-2 py-1">{item.Aktivitas?.kode}</td>
                         <td className="border px-2 py-1">{item.Aktivitas?.aktivitas}</td>

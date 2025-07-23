@@ -2,6 +2,8 @@ import React, { useEffect } from 'react';
 import { View, Image, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+console.log('Splash Screen');
+
 export default function SplashScreen({ navigation }) {
     useEffect(() => {
         const checkLogin = async () => {

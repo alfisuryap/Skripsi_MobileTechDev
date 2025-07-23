@@ -13,6 +13,7 @@ import bcrypt from 'bcryptjs';
 import { Alert } from 'react-native';
 import Checkbox from 'expo-checkbox';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
 console.log(">>> LoginScreen loaded");
 
 export default function LoginScreen({ navigation }) {
@@ -21,36 +22,48 @@ export default function LoginScreen({ navigation }) {
   const [keepSignedIn, setKeepSignedIn] = useState(false);
 
   const handleLogin = async () => {
+    await AsyncStorage.removeItem("user_data");
+    await supabase.auth.signOut();
+
     if (!email || !password) {
       Alert.alert('Validasi Gagal', 'Mohon isi email dan password');
       return;
     }
 
     try {
-      const { data, error } = await supabase
+      // 🔐 Gunakan Supabase Auth
+      console.log("LOGIN INPUT:", email, password);
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      console.log("LOGIN:", { data, error });
+
+      if (error) {
+        Alert.alert('Login gagal', error.message);
+        return;
+      }
+      const user_id = data.user.id; // ✅ UUID dari Supabase Auth
+
+      // 🔄 Ambil data dari tabel AkunManagement untuk nama lengkap dsb
+      const { data: akunData, error: akunError } = await supabase
         .from('AkunManagement')
         .select('*')
-        .eq('email', email)
+        .eq('user_id', user_id)
         .single();
 
-      if (error || !data) {
-        Alert.alert('Login gagal', 'Email tidak ditemukan');
+      if (akunError || !akunData) {
+        Alert.alert('Login gagal', 'Data akun tidak ditemukan');
         return;
       }
 
-      const match = await bcrypt.compare(password, data.password);
-      if (!match) {
-        Alert.alert('Login gagal', 'Password salah');
-        return;
-      }
-
-      Alert.alert('Login berhasil', `Selamat datang, ${data.nama_lengkap}`);
+      Alert.alert('Login berhasil', `Selamat datang, ${akunData.nama_lengkap}`);
+      console.log('Login Success');
+      await AsyncStorage.setItem('user_nama', akunData.nama_lengkap);
+      await AsyncStorage.setItem('user_email', akunData.email);
 
       const now = new Date().getTime();
       await AsyncStorage.setItem('login_timestamp', now.toString());
-      await AsyncStorage.setItem('user_email', email);
-      await AsyncStorage.setItem('user_nama', data.nama_lengkap);
-      console.log('>>> Simpan user_nama:', data.nama_lengkap);
 
       if (keepSignedIn) {
         await AsyncStorage.setItem('isLoggedIn', 'true');
@@ -58,11 +71,21 @@ export default function LoginScreen({ navigation }) {
         await AsyncStorage.removeItem('isLoggedIn');
       }
 
+      const userObject = {
+        id: user_id,
+        nama: akunData.nama_lengkap,
+        email: akunData.email,
+        role: akunData.role,
+      };
+
+      await AsyncStorage.setItem('user', JSON.stringify(userObject));
+
       navigation.replace('MainTabs');
     } catch (err) {
       Alert.alert('Terjadi kesalahan', err.message);
     }
   };
+
 
   return (
     <ImageBackground

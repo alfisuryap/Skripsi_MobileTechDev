@@ -5,6 +5,7 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Layout from "./components/Layout";
 
+
 import Dashboard from "./pages/Dashboard";
 import InputHRA from "./pages/InputHRA";
 import Proses from "./pages/master-data/Proses";
