@@ -16,25 +16,34 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRoute } from '@react-navigation/native';
 import { supabase } from '../config/supabase';
 
+// Helper function to count items separated by semicolon
+const countSemicolonSeparatedItems = (text) => {
+    if (!text) {
+        return 0;
+    }
+    const items = String(text).split(';').map(item => item.trim()).filter(item => item !== '');
+    return items.length;
+};
+
 export default function HRADetailScreen({ navigation }) {
     const route = useRoute();
     const { subProsesItem, parentProsesItem, originalHraIds } = route.params;
 
     const [loadingDetails, setLoadingDetails] = useState(true);
-    const [detailHRAItems, setDetailHRAItems] = useState([]); 
+    const [detailHRAItems, setDetailHRAItems] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
 
     const getUniqueActivityDisplayKey = (item) => {
         if (!item) return 'N/A';
         // Prioritaskan aktivitas_id untuk judul utama dan kunci pengelompokan
         if (item.aktivitas_id?.kode && item.aktivitas_id?.aktivitas) {
-            return `${item.aktivitas_id.kode} ${item.aktivitas_id.aktivitas}`;
+            return `${String(item.aktivitas_id.kode)} ${String(item.aktivitas_id.aktivitas)}`;
         }
         // Fallback ke sub_aktivitas_id jika tidak ada aktivitas_id yang relevan
         if (item.sub_aktivitas_id?.kode && item.sub_aktivitas_id?.sub_aktivitas) {
-            return `${item.sub_aktivitas_id.kode} ${item.sub_aktivitas_id.sub_aktivitas}`;
+            return `${String(item.sub_aktivitas_id.kode)} ${String(item.sub_aktivitas_id.sub_aktivitas)}`;
         }
-        return `Item ID: ${item.id}`; // Fallback jika tidak ada kode/nama yang relevan
+        return `Item ID: ${String(item.id)}`; // Fallback jika tidak ada kode/nama yang relevan
     };
 
     // Fungsi helper untuk mengelompokkan data InputHRA berdasarkan Aktivitas/Sub-Aktivitas unik (kode + nama)
@@ -69,20 +78,20 @@ export default function HRADetailScreen({ navigation }) {
                     sub_proses_id (id, kode, sub_proses),
                     aktivitas_id (id, kode, aktivitas),
                     sub_aktivitas_id (id, kode, sub_aktivitas),
-                    hierarki_id (id, kode, hierarki),
+                    hierarki_id,
                     bahaya_kesehatan,
                     risiko_kesehatan,
-                    manajemen_operasi_id,
-                    likelihood_tanpa_pengendalian, 
-                    severity_tanpa_pengendalian, 
+                    manajemen_operasi_id (id, manajemen_operasi),
+                    likelihood_tanpa_pengendalian,
+                    severity_tanpa_pengendalian,
                     kode_tingkat_bahaya_tanpa_pengendalian,
                     tingkat_bahaya_tanpa_pengendalian,
                     kode_tingkat_bahaya_dengan_pengendalian,
                     tingkat_bahaya_dengan_pengendalian,
-                    likelihood_dengan_pengendalian, 
-                    severity_dengan_pengendalian, 
+                    likelihood_dengan_pengendalian,
+                    severity_dengan_pengendalian,
                     risk_dengan_pengendalian,
-                    risk_tanpa_pengendalian, 
+                    risk_tanpa_pengendalian,
                     pengendalian_preventive,
                     pengendalian_detective,
                     pengendalian_mitigative,
@@ -109,7 +118,6 @@ export default function HRADetailScreen({ navigation }) {
     }, [originalHraIds]);
 
     // Fungsi untuk mendapatkan teks yang akan ditampilkan untuk setiap aktivitas/sub-aktivitas
-    // Ini sama dengan getUniqueActivityDisplayKey, tetapi namanya lebih jelas untuk render
     const getActivitySubActivityDisplayText = (item) => {
         return getUniqueActivityDisplayKey(item);
     };
@@ -128,8 +136,13 @@ export default function HRADetailScreen({ navigation }) {
             return null;
         }
 
-        // Menghitung Danger/Risk: 1 jika bahaya_kesehatan ada dan tidak kosong, 0 jika tidak
-        const dangerRiskCount = (item.bahaya_kesehatan && String(item.bahaya_kesehatan).trim() !== '') ? 1 : 0;
+        // Menghitung Risk Category: 1 jika manajemen_operasi_id ada, 0 jika tidak
+        const riskCategoryCount = item.manajemen_operasi_id ? 1 : 0;
+
+        // Menghitung Danger/Risk: jumlah item dari bahaya_kesehatan dan risiko_kesehatan
+        const totalDangerRiskCount =
+            countSemicolonSeparatedItems(item.bahaya_kesehatan) +
+            countSemicolonSeparatedItems(item.risiko_kesehatan);
 
         return (
             <TouchableOpacity style={styles.activityDetailCard} onPress={() => navigation.navigate('ManajemenOperasiScreen', { activityItem: item })}>
@@ -138,15 +151,17 @@ export default function HRADetailScreen({ navigation }) {
                     <View style={styles.activityDetailGrid}>
                         <View style={styles.gridColumn}>
                             <Text style={styles.gridLabel}>Sub-Activity</Text>
-                            <Text style={styles.gridValue}>{index + 1}</Text>
+                            <Text style={styles.gridValue}>{String(index + 1)}</Text>
                         </View>
                         <View style={styles.gridColumn}>
                             <Text style={styles.gridLabel}>Risk Category</Text>
-                            <Text style={styles.gridValue}>{item.manajemen_operasi_id || '-'}</Text>
+                            {/* Menggunakan nilai count yang baru */}
+                            <Text style={styles.gridValue}>{String(riskCategoryCount)}</Text>
                         </View>
                         <View style={styles.gridColumn}>
                             <Text style={styles.gridLabel}>Danger/Risk</Text>
-                            <Text style={styles.gridValue}>{dangerRiskCount}</Text>
+                            {/* Menggunakan nilai count yang baru */}
+                            <Text style={styles.gridValue}>{String(totalDangerRiskCount)}</Text>
                         </View>
                     </View>
                 </View>
@@ -154,6 +169,7 @@ export default function HRADetailScreen({ navigation }) {
             </TouchableOpacity>
         );
     };
+
     return (
         <SafeAreaView style={styles.container}>
             {/* Header Layar Utama */}
@@ -161,7 +177,7 @@ export default function HRADetailScreen({ navigation }) {
                 <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={24} color="#333" />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>{subProsesItem?.sub_proses || 'Detail HRA'}</Text>
+                <Text style={styles.headerTitle}>{String(subProsesItem?.sub_proses || 'Detail HRA')}</Text>
             </View>
 
             {/* Search Bar for Activities (Fixed) */}
@@ -183,7 +199,7 @@ export default function HRADetailScreen({ navigation }) {
                 <FlatList
                     data={filteredActivities}
                     renderItem={renderDetailItem}
-                    keyExtractor={item => item.id.toString()}
+                    keyExtractor={item => String(item.id)}
                     ListEmptyComponent={() => (
                         <View style={styles.emptyContainer}>
                             <Text style={styles.emptyText}>Tidak ada aktivitas/sub-aktivitas ditemukan untuk proses ini.</Text>
@@ -192,8 +208,6 @@ export default function HRADetailScreen({ navigation }) {
                     contentContainerStyle={styles.flatListContentContainer}
                 />
             )}
-
-            
         </SafeAreaView>
     );
 }

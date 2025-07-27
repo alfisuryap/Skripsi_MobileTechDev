@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     View,
     Text,
@@ -9,16 +9,47 @@ import {
     Modal,
     Image,
     SafeAreaView,
-    Alert
+    Alert,
+    FlatList, // Import FlatList for horizontal scrolling
+    Dimensions // Import Dimensions for responsive width
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute } from '@react-navigation/native';
 import { supabase } from '../config/supabase';
 
+// Get screen width for responsive slide item width
+const { width: screenWidth } = Dimensions.get('window');
+
+// Helper function to split semicolon-separated strings into an array
+const splitSemicolonString = (text) => {
+    if (!text) {
+        return [];
+    }
+    return String(text).split(';').map(item => item.trim()).filter(item => item !== '');
+};
+
 export default function DetailScreen({ navigation }) {
     const route = useRoute();
-    // Menerima activityItem (InputHRA lengkap) dan teks bahaya spesifik yang diklik
-    const { activityItem, selectedDangerText } = route.params;
+    // Menerima activityItem (InputHRA lengkap)
+    // Hapus selectedDangerText dari destructuring route.params
+    const { activityItem } = route.params;
+
+    // Tambahkan console.log untuk melihat struktur activityItem
+    useEffect(() => {
+        console.log("DetailScreen - Received activityItem:", activityItem);
+    }, [activityItem]);
+
+    // Jika activityItem tidak ada, tampilkan pesan loading/error
+    if (!activityItem) {
+        return (
+            <SafeAreaView style={styles.container}>
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#2F80ED" />
+                    <Text style={styles.loadingText}>Memuat data aktivitas...</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
 
     const [activeTab, setActiveTab] = useState('danger'); // 'danger' atau 'risk'
     const [activeRiskScoreTab, setActiveRiskScoreTab] = useState('withControl'); // 'withControl' atau 'withoutControl'
@@ -26,7 +57,15 @@ export default function DetailScreen({ navigation }) {
     const [controllingModalVisible, setControllingModalVisible] = useState(false);
     const [activeControllingTab, setActiveControllingTab] = useState('hierarchy'); // 'hierarchy' atau 'activities'
     const [hierarchiesData, setHierarchiesData] = useState([]); // Mengubah dari singular hierarkiData menjadi plural hierarchiesData
-    const [expandedActivity, setExpandedActivity] = useState(null);
+    const [expandedActivity, setExpandedActivity] = useState(null); // State untuk mengelola aktivitas yang diperluas
+
+    // New states for active slide index
+    const [activeDangerSlide, setActiveDangerSlide] = useState(0);
+    const [activeRiskSlide, setActiveRiskSlide] = useState(0);
+
+    // Parse danger and risk texts into arrays for slideable display
+    const dangerItems = splitSemicolonString(activityItem.bahaya_kesehatan);
+    const riskItems = splitSemicolonString(activityItem.risiko_kesehatan);
 
     // Fetch Hierarki data based on hierarki_id from activityItem
     useEffect(() => {
@@ -50,7 +89,7 @@ export default function DetailScreen({ navigation }) {
                     // Step 2: Fetch details for each hierarki_id
                     const { data: hierarchies, error: hierarchiesError } = await supabase
                         .from('Hierarki')
-                        .select('id, kode, hierarki')
+                        .select('id, kode, hierarki') // Mengambil 'kode' dan 'hierarki' dari tabel Hierarki
                         .in('id', hierarkiIds);
 
                     if (hierarchiesError) {
@@ -73,16 +112,12 @@ export default function DetailScreen({ navigation }) {
     const riskFollowUpText = "Tindakan perbaikan yang diperlukan dalam jangka 3 bulan. Dilakukan identifikasi dan identifikasi penulolahan. Monitoring dilakukan diperlukan jangka mingguan. BOD dan CEO yang akan melakukan tindakan.";
 
     // Data Controlling Activities (dari kolom 'pengendalian_preventive', 'pengendalian_detective', 'pengendalian_mitigative' di InputHRA)
-    const controllingActivitiesData = [];
-    if (activityItem.pengendalian_preventive) {
-        controllingActivitiesData.push({ id: 'preventive', type: 'Preventive', description: activityItem.pengendalian_preventive });
-    }
-    if (activityItem.pengendalian_detective) {
-        controllingActivitiesData.push({ id: 'detective', type: 'Detective', description: activityItem.pengendalian_detective });
-    }
-    if (activityItem.pengendalian_mitigative) {
-        controllingActivitiesData.push({ id: 'mitigative', type: 'Mitigative', description: activityItem.pengendalian_mitigative });
-    }
+    const controllingActivitiesData = [
+        { id: 'preventive', type: 'Preventive', description: activityItem.pengendalian_preventive || 'Tidak ada deskripsi.' },
+        { id: 'detective', type: 'Detective', description: activityItem.pengendalian_detective || 'Tidak ada deskripsi.' },
+        { id: 'mitigative', type: 'Mitigative', description: activityItem.pengendalian_mitigative || 'Tidak ada deskripsi.' },
+    ].filter(item => item.description !== 'Tidak ada deskripsi.'); // Filter out empty descriptions
+
 
     // Sumber gambar untuk bahaya dan risiko
     const dangerImageSource = activityItem.foto_bahaya_kesehatan
@@ -92,6 +127,23 @@ export default function DetailScreen({ navigation }) {
     const riskImageSource = activityItem.foto_risiko_kesehatan
         ? { uri: activityItem.foto_risiko_kesehatan }
         : require('../assets/nodata.png'); // Pastikan Anda memiliki gambar placeholder ini
+
+    // Handler for FlatList viewable items change
+    const onViewableItemsChangedDanger = useCallback(({ viewableItems }) => {
+        if (viewableItems.length > 0) {
+            setActiveDangerSlide(viewableItems[0].index);
+        }
+    }, []);
+
+    const onViewableItemsChangedRisk = useCallback(({ viewableItems }) => {
+        if (viewableItems.length > 0) {
+            setActiveRiskSlide(viewableItems[0].index);
+        }
+    }, []);
+
+    const viewabilityConfig = {
+        itemVisiblePercentThreshold: 50 // Item is considered viewable if 50% of it is visible
+    };
 
     return (
         <SafeAreaView style={styles.container}>
@@ -107,14 +159,14 @@ export default function DetailScreen({ navigation }) {
                 {/* Section: Process */}
                 <View style={styles.processCard}>
                     <Text style={styles.processLabel}>Process</Text>
-                    <Text style={styles.processValue}>{activityItem?.proses_id?.kode || 'N/A'} - {activityItem?.proses_id?.proses || 'N/A'}</Text>
+                    <Text style={styles.processValue}>{String(activityItem?.proses_id?.kode || 'N/A')} - {String(activityItem?.proses_id?.proses || 'N/A')}</Text>
                 </View>
 
                 {/* Section: Risk Category */}
                 <View style={styles.infoCard}>
                     <Text style={styles.infoLabel}>Risk Category</Text>
                     {/* Menampilkan nama kategori manajemen_operasi */}
-                    <Text style={styles.infoValue}>{activityItem?.manajemen_operasi_id?.manajemen_operasi || '-'}</Text>
+                    <Text style={styles.infoValue}>{String(activityItem?.manajemen_operasi_id?.manajemen_operasi || '-')}</Text>
                 </View>
 
                 {/* Tabs Danger / Risk */}
@@ -143,8 +195,40 @@ export default function DetailScreen({ navigation }) {
                             resizeMode="contain"
                             onError={(e) => console.log('Error loading danger image:', e.nativeEvent.error)}
                         />
-                        {/* Teks Bahaya Kesehatan */}
-                        <Text style={styles.bahayaKesehatanMainText}>{selectedDangerText || 'Deskripsi bahaya tidak tersedia.'}</Text>
+                        {/* Teks Bahaya Kesehatan - Sekarang menggunakan FlatList untuk slideable content */}
+                        {dangerItems.length > 0 ? (
+                            <>
+                                <FlatList
+                                    data={dangerItems}
+                                    horizontal
+                                    pagingEnabled
+                                    showsHorizontalScrollIndicator={false}
+                                    keyExtractor={(item, index) => `danger-${index}`}
+                                    renderItem={({ item }) => (
+                                        <View style={[styles.slideItem, { width: screenWidth - 32 }]}>
+                                            <Text style={styles.bahayaKesehatanMainText}>{String(item)}</Text>
+                                        </View>
+                                    )}
+                                    onViewableItemsChanged={onViewableItemsChangedDanger}
+                                    viewabilityConfig={viewabilityConfig}
+                                    contentContainerStyle={styles.slideContainer}
+                                />
+                                <View style={styles.dotsContainer}>
+                                    {dangerItems.map((_, index) => (
+                                        <View
+                                            key={`danger-dot-${index}`}
+                                            style={[
+                                                styles.dot,
+                                                activeDangerSlide === index && styles.activeDot
+                                            ]}
+                                        />
+                                    ))}
+                                </View>
+                            </>
+                        ) : (
+                            <Text style={styles.bahayaKesehatanMainText}>Deskripsi bahaya tidak tersedia.</Text>
+                        )}
+
 
                         {/* Risk Score Section */}
                         <View style={styles.sectionCard}>
@@ -175,30 +259,30 @@ export default function DetailScreen({ navigation }) {
                                 <View style={styles.riskScoreContent}>
                                     <View style={styles.riskScoreRow}>
                                         <Text style={styles.riskScoreDetailText}>Likelihood</Text>
-                                        <Text style={styles.riskScoreDetailValue}>{activityItem.likelihood_dengan_pengendalian || '0'}</Text>
+                                        <Text style={styles.riskScoreDetailValue}>{String(activityItem.likelihood_dengan_pengendalian || '0')}</Text>
                                     </View>
                                     <View style={styles.riskScoreRow}>
                                         <Text style={styles.riskScoreDetailText}>Severity</Text>
-                                        <Text style={styles.riskScoreDetailValue}>{activityItem.severity_dengan_pengendalian || '0'}</Text>
+                                        <Text style={styles.riskScoreDetailValue}>{String(activityItem.severity_dengan_pengendalian || '0')}</Text>
                                     </View>
                                     <TouchableOpacity style={styles.riskScoreButton}>
-                                        <Text style={styles.riskScoreButtonText}>{activityItem.tingkat_bahaya_dengan_pengendalian}</Text>
-                                        <Text style={styles.riskScoreButtonValue}>{activityItem.risk_dengan_pengendalian || '0'}</Text>
+                                        <Text style={styles.riskScoreButtonText}>{String(activityItem.tingkat_bahaya_dengan_pengendalian || '-')}</Text>
+                                        <Text style={styles.riskScoreButtonValue}>{String(activityItem.risk_dengan_pengendalian || '0')}</Text>
                                     </TouchableOpacity>
                                 </View>
                             ) : (
                                 <View style={styles.riskScoreContent}>
                                     <View style={styles.riskScoreRow}>
                                         <Text style={styles.riskScoreDetailText}>Likelihood</Text>
-                                        <Text style={styles.riskScoreDetailValue}>{activityItem.likelihood_tanpa_pengendalian || '0'}</Text>
+                                        <Text style={styles.riskScoreDetailValue}>{String(activityItem.likelihood_tanpa_pengendalian || '0')}</Text>
                                     </View>
                                     <View style={styles.riskScoreRow}>
                                         <Text style={styles.riskScoreDetailText}>Severity</Text>
-                                        <Text style={styles.riskScoreDetailValue}>{activityItem.severity_tanpa_pengendalian || '0'}</Text>
+                                        <Text style={styles.riskScoreDetailValue}>{String(activityItem.severity_tanpa_pengendalian || '0')}</Text>
                                     </View>
                                     <TouchableOpacity style={styles.riskScoreButton}>
-                                        <Text style={styles.riskScoreButtonText}>{activityItem.tingkat_bahaya_tanpa_pengendalian}</Text>
-                                        <Text style={styles.riskScoreButtonValue}>{activityItem.risk_tanpa_pengendalian || '0'}</Text>
+                                        <Text style={styles.riskScoreButtonText}>{String(activityItem.tingkat_bahaya_tanpa_pengendalian || '-')}</Text>
+                                        <Text style={styles.riskScoreButtonValue}>{String(activityItem.risk_tanpa_pengendalian || '0')}</Text>
                                     </TouchableOpacity>
                                 </View>
                             )}
@@ -233,7 +317,8 @@ export default function DetailScreen({ navigation }) {
                                     {hierarchiesData.length > 0 ? (
                                         hierarchiesData.map(item => (
                                             <View key={item.id} style={styles.controllingHierarchyItem}>
-                                                <Text style={styles.controllingHierarchyLabel}>{item.kode} </Text>
+                                                <Text style={styles.controllingHierarchyLabel}>{String(item.kode || '-')}</Text>
+                                                <Text style={styles.controllingHierarchyDescription}>{String(item.hierarki || '-')}</Text>
                                             </View>
                                         ))
                                     ) : (
@@ -244,21 +329,24 @@ export default function DetailScreen({ navigation }) {
                                 <View style={styles.modalContentSection}>
                                     {controllingActivitiesData.length > 0 ? (
                                         controllingActivitiesData.map(item => (
-                                            <TouchableOpacity
-                                                key={item.id}
-                                                style={styles.modalActivityAccordionHeader}
-                                                onPress={() => setExpandedActivity(expandedActivity === item.id ? null : item.id)}
-                                            >
-                                                <Text style={styles.modalActivityAccordionTitle}>{item.type}</Text>
-                                                <Ionicons
-                                                    name={expandedActivity === item.id ? 'chevron-up' : 'chevron-down'}
-                                                    size={20}
-                                                    color="#555"
-                                                />
+                                            <View key={item.id}> {/* Wrapper View for accordion item */}
+                                                <TouchableOpacity
+                                                    style={styles.modalActivityAccordionHeader}
+                                                    onPress={() => setExpandedActivity(expandedActivity === item.id ? null : item.id)}
+                                                >
+                                                    <Text style={styles.modalActivityAccordionTitle}>{String(item.type)}</Text>
+                                                    <Ionicons
+                                                        name={expandedActivity === item.id ? 'chevron-up' : 'chevron-down'}
+                                                        size={20}
+                                                        color="#555"
+                                                    />
+                                                </TouchableOpacity>
                                                 {expandedActivity === item.id && (
-                                                    <Text style={styles.modalActivityAccordionContent}>{item.description}</Text>
+                                                    <View style={styles.modalActivityAccordionContentWrapper}>
+                                                        <Text style={styles.modalActivityAccordionContent}>{String(item.description)}</Text>
+                                                    </View>
                                                 )}
-                                            </TouchableOpacity>
+                                            </View>
                                         ))
                                     ) : (
                                         <Text style={styles.noDataText}>Tidak ada aktivitas pengendalian.</Text>
@@ -272,14 +360,45 @@ export default function DetailScreen({ navigation }) {
                 {/* Konten Tab Risk */}
                 {activeTab === 'risk' && (
                     <View style={styles.tabContent}>
-
                         <Image
                             source={riskImageSource}
                             style={styles.bahayaImage}
                             resizeMode="contain"
                             onError={(e) => console.log('Error loading risk image:', e.nativeEvent.error)}
                         />
-                        <Text style={styles.bahayaKesehatanMainText}>{activityItem.risiko_kesehatan}</Text>
+                        {/* Teks Risiko Kesehatan - Sekarang menggunakan FlatList untuk slideable content */}
+                        {riskItems.length > 0 ? (
+                            <>
+                                <FlatList
+                                    data={riskItems}
+                                    horizontal
+                                    pagingEnabled
+                                    showsHorizontalScrollIndicator={false}
+                                    keyExtractor={(item, index) => `risk-${index}`}
+                                    renderItem={({ item }) => (
+                                        <View style={[styles.slideItem, { width: screenWidth - 32 }]}>
+                                            <Text style={styles.bahayaKesehatanMainText}>{String(item)}</Text>
+                                        </View>
+                                    )}
+                                    onViewableItemsChanged={onViewableItemsChangedRisk}
+                                    viewabilityConfig={viewabilityConfig}
+                                    contentContainerStyle={styles.slideContainer}
+                                />
+                                <View style={styles.dotsContainer}>
+                                    {riskItems.map((_, index) => (
+                                        <View
+                                            key={`risk-dot-${index}`}
+                                            style={[
+                                                styles.dot,
+                                                activeRiskSlide === index && styles.activeDot
+                                            ]}
+                                        />
+                                    ))}
+                                </View>
+                            </>
+                        ) : (
+                            <Text style={styles.bahayaKesehatanMainText}>Deskripsi risiko tidak tersedia.</Text>
+                        )}
 
                         {/* Risk Score Section */}
                         <View style={styles.sectionCard}>
@@ -310,30 +429,30 @@ export default function DetailScreen({ navigation }) {
                                 <View style={styles.riskScoreContent}>
                                     <View style={styles.riskScoreRow}>
                                         <Text style={styles.riskScoreDetailText}>Likelihood</Text>
-                                        <Text style={styles.riskScoreDetailValue}>{activityItem.likelihood_dengan_pengendalian || '0'}</Text>
+                                        <Text style={styles.riskScoreDetailValue}>{String(activityItem.likelihood_dengan_pengendalian || '0')}</Text>
                                     </View>
                                     <View style={styles.riskScoreRow}>
                                         <Text style={styles.riskScoreDetailText}>Severity</Text>
-                                        <Text style={styles.riskScoreDetailValue}>{activityItem.severity_dengan_pengendalian || '0'}</Text>
+                                        <Text style={styles.riskScoreDetailValue}>{String(activityItem.severity_dengan_pengendalian || '0')}</Text>
                                     </View>
                                     <TouchableOpacity style={styles.riskScoreButton}>
-                                        <Text style={styles.riskScoreButtonText}>{activityItem.tingkat_bahaya_dengan_pengendalian}</Text>
-                                        <Text style={styles.riskScoreButtonValue}>{activityItem.risk_dengan_pengendalian || '0'}</Text>
+                                        <Text style={styles.riskScoreButtonText}>{String(activityItem.tingkat_bahaya_dengan_pengendalian || '-')}</Text>
+                                        <Text style={styles.riskScoreButtonValue}>{String(activityItem.risk_dengan_pengendalian || '0')}</Text>
                                     </TouchableOpacity>
                                 </View>
                             ) : (
                                 <View style={styles.riskScoreContent}>
                                     <View style={styles.riskScoreRow}>
                                         <Text style={styles.riskScoreDetailText}>Likelihood</Text>
-                                        <Text style={styles.riskScoreDetailValue}>{activityItem.likelihood_tanpa_pengendalian || '0'}</Text>
+                                        <Text style={styles.riskScoreDetailValue}>{String(activityItem.likelihood_tanpa_pengendalian || '0')}</Text>
                                     </View>
                                     <View style={styles.riskScoreRow}>
                                         <Text style={styles.riskScoreDetailText}>Severity</Text>
-                                        <Text style={styles.riskScoreDetailValue}>{activityItem.severity_tanpa_pengendalian || '0'}</Text>
+                                        <Text style={styles.riskScoreDetailValue}>{String(activityItem.severity_tanpa_pengendalian || '0')}</Text>
                                     </View>
                                     <TouchableOpacity style={styles.riskScoreButton}>
-                                        <Text style={styles.riskScoreButtonText}>{activityItem.tingkat_bahaya_tanpa_pengendalian}</Text>
-                                        <Text style={styles.riskScoreButtonValue}>{activityItem.risk_tanpa_pengendalian || '0'}</Text>
+                                        <Text style={styles.riskScoreButtonText}>{String(activityItem.tingkat_bahaya_tanpa_pengendalian || '-')}</Text>
+                                        <Text style={styles.riskScoreButtonValue}>{String(activityItem.risk_tanpa_pengendalian || '0')}</Text>
                                     </TouchableOpacity>
                                 </View>
                             )}
@@ -364,11 +483,12 @@ export default function DetailScreen({ navigation }) {
 
                             {/* Konten Controlling Tab */}
                             {activeControllingTab === 'hierarchy' ? (
-                                 <View style={styles.controllingContent}>
+                                <View style={styles.controllingContent}>
                                     {hierarchiesData.length > 0 ? (
                                         hierarchiesData.map(item => (
                                             <View key={item.id} style={styles.controllingHierarchyItem}>
-                                                <Text style={styles.controllingHierarchyLabel}>{item.kode} </Text>
+                                                <Text style={styles.controllingHierarchyLabel}>{String(item.kode || '-')}</Text>
+                                                <Text style={styles.controllingHierarchyDescription}>{String(item.hierarki || '-')}</Text>
                                             </View>
                                         ))
                                     ) : (
@@ -379,25 +499,27 @@ export default function DetailScreen({ navigation }) {
                                 <View style={styles.modalContentSection}>
                                     {controllingActivitiesData.length > 0 ? (
                                         controllingActivitiesData.map(item => (
-                                            <TouchableOpacity
-                                                key={item.id}
-                                                style={styles.modalActivityAccordionHeader}
-                                                onPress={() => setExpandedActivity(expandedActivity === item.id ? null : item.id)}
-                                            >
-                                                <Text style={styles.modalActivityAccordionTitle}>{item.type}</Text>
-                                                <Ionicons
-                                                    name={expandedActivity === item.id ? 'chevron-up' : 'chevron-down'}
-                                                    size={20}
-                                                    color="#555"
-                                                />
+                                            <View key={item.id}> {/* Wrapper View for accordion item */}
+                                                <TouchableOpacity
+                                                    style={styles.modalActivityAccordionHeader}
+                                                    onPress={() => setExpandedActivity(expandedActivity === item.id ? null : item.id)}
+                                                >
+                                                    <Text style={styles.modalActivityAccordionTitle}>{String(item.type)}</Text>
+                                                    <Ionicons
+                                                        name={expandedActivity === item.id ? 'chevron-up' : 'chevron-down'}
+                                                        size={20}
+                                                        color="#555"
+                                                    />
+                                                </TouchableOpacity>
                                                 {expandedActivity === item.id && (
-                                                    <Text style={styles.modalActivityAccordionContent}>{item.description}</Text>
+                                                    <View style={styles.modalActivityAccordionContentWrapper}>
+                                                        <Text style={styles.modalActivityAccordionContent}>{String(item.description)}</Text>
+                                                    </View>
                                                 )}
-                                            </TouchableOpacity>
+                                            </View>
                                         ))
                                     ) : (
                                         <Text style={styles.noDataText}>Tidak ada aktivitas pengendalian.</Text>
-
                                     )}
                                 </View>
                             )}
@@ -425,7 +547,7 @@ export default function DetailScreen({ navigation }) {
                             resizeMode="contain"
                         />
                         <Text style={styles.modalSubtitle}>Risk Follow-Up</Text>
-                        <Text style={styles.modalText}>{riskFollowUpText}</Text>
+                        <Text style={styles.modalText}>{String(riskFollowUpText)}</Text>
                     </View>
                 </View>
             </Modal>
@@ -453,42 +575,46 @@ export default function DetailScreen({ navigation }) {
                             <TouchableOpacity
                                 style={[styles.controllingModalTabButton, activeControllingTab === 'activities' && styles.activeControllingModalTab]}
                                 onPress={() => setActiveControllingTab('activities')}
-                            >
+                                >
                                 <Text style={[styles.controllingModalTabText, activeControllingTab === 'activities' && styles.activeControllingModalTabText]}>Activities</Text>
                             </TouchableOpacity>
                         </View>
 
                         {activeControllingTab === 'hierarchy' ? (
-                             <View style={styles.controllingContent}>
-                                    {hierarchiesData.length > 0 ? (
-                                        hierarchiesData.map(item => (
-                                            <View key={item.id} style={styles.controllingHierarchyItem}>
-                                                <Text style={styles.controllingHierarchyLabel}>{item.kode} </Text>
-                                            </View>
-                                        ))
-                                    ) : (
-                                        <Text style={styles.noDataText}>Data hierarki tidak ditemukan.</Text>
-                                    )}
-                                </View>
+                            <View style={styles.modalContentSection}>
+                                {hierarchiesData.length > 0 ? (
+                                    hierarchiesData.map(item => (
+                                        <View key={item.id} style={styles.modalHierarchyCard}>
+                                            <Text style={styles.modalHierarchyLabel}>{String(item.kode || '-')}</Text>
+                                            <Text style={styles.modalHierarchyDescription}>{String(item.hierarki || '-')}</Text>
+                                        </View>
+                                    ))
+                                ) : (
+                                    <Text style={styles.noDataText}>Data hierarki tidak ditemukan.</Text>
+                                )}
+                            </View>
                         ) : (
                             <View style={styles.modalContentSection}>
                                 {controllingActivitiesData.length > 0 ? (
                                     controllingActivitiesData.map(item => (
-                                        <TouchableOpacity
-                                            key={item.id}
-                                            style={styles.modalActivityAccordionHeader}
-                                            onPress={() => setExpandedActivity(expandedActivity === item.id ? null : item.id)}
-                                        >
-                                            <Text style={styles.modalActivityAccordionTitle}>{item.type}</Text>
-                                            <Ionicons
-                                                name={expandedActivity === item.id ? 'chevron-up' : 'chevron-down'}
-                                                size={20}
-                                                color="#555"
-                                            />
+                                        <View key={item.id}> {/* Wrapper View for accordion item */}
+                                            <TouchableOpacity
+                                                style={styles.modalActivityAccordionHeader}
+                                                onPress={() => setExpandedActivity(expandedActivity === item.id ? null : item.id)}
+                                            >
+                                                <Text style={styles.modalActivityAccordionTitle}>{String(item.type)}</Text>
+                                                <Ionicons
+                                                    name={expandedActivity === item.id ? 'chevron-up' : 'chevron-down'}
+                                                    size={20}
+                                                    color="#555"
+                                                />
+                                            </TouchableOpacity>
                                             {expandedActivity === item.id && (
-                                                <Text style={styles.modalActivityAccordionContent}>{item.description}</Text>
+                                                <View style={styles.modalActivityAccordionContentWrapper}>
+                                                    <Text style={styles.modalActivityAccordionContent}>{String(item.description)}</Text>
+                                                </View>
                                             )}
-                                        </TouchableOpacity>
+                                        </View>
                                     ))
                                 ) : (
                                     <Text style={styles.noDataText}>Tidak ada aktivitas pengendalian.</Text>
@@ -587,6 +713,17 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'center',
         marginTop: 5,
+        marginBottom: 20, // Add margin below dots
+    },
+    dot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: '#ccc',
+        marginHorizontal: 4,
+    },
+    activeDot: {
+        backgroundColor: '#2F80ED',
     },
     tabsContainer: {
         flexDirection: 'row',
@@ -651,6 +788,7 @@ const styles = StyleSheet.create({
     },
     sectionHeader: {
         flexDirection: 'row',
+        justifyContent: 'space-between', // Changed to space-between
         alignItems: 'center',
         marginBottom: 10,
     },
@@ -763,18 +901,23 @@ const styles = StyleSheet.create({
         marginTop: 10,
     },
     controllingHierarchyItem: {
-        
         marginBottom: 8,
-        padding: 5,
-        borderRadius:10,
+        padding: 10, // Added padding
+        borderRadius: 10,
         alignItems: 'center',
         backgroundColor: '#2F80ED',
         flexDirection: 'column',
-        
     },
     controllingHierarchyLabel: {
         fontWeight: 'bold',
-        color: '#fff'
+        color: '#fff',
+        fontSize: 16, // Added font size
+    },
+    controllingHierarchyDescription: { // New style for hierarchy description
+        color: '#fff',
+        fontSize: 14,
+        textAlign: 'center',
+        marginTop: 5,
     },
     controllingActivityItem: {
         flexDirection: 'row',
@@ -927,12 +1070,47 @@ const styles = StyleSheet.create({
         color: '#333',
         flex: 1, // Take available space
     },
+    modalActivityAccordionContentWrapper: { // New style for content wrapper
+        backgroundColor: '#F9F9F9', // Slightly different background for content
+        borderBottomLeftRadius: 8,
+        borderBottomRightRadius: 8,
+        padding: 12,
+        paddingTop: 0, // Adjust padding top if needed
+        marginBottom: 8, // Keep margin for the whole accordion item
+        width: '100%',
+        borderWidth: 1,
+        borderColor: '#E0E0E0',
+        borderTopWidth: 0, // Remove top border to connect with header
+    },
     modalActivityAccordionContent: {
         fontSize: 14,
         color: '#555',
-        marginTop: 10,
-        paddingHorizontal: 10,
+        // marginTop: 10, // Removed as it's now inside a wrapper
+        paddingHorizontal: 0, // Removed as it's now inside a wrapper
         paddingBottom: 5,
         width: '100%', // Ensure content takes full width
+    },
+    slideContainer: {
+        alignItems: 'center', // Center content horizontally
+        justifyContent: 'center', // Center content vertically
+        flexGrow: 1, // Allow content to grow
+        // paddingHorizontal: 16, // Removed as width is now calculated to include padding
+    },
+    slideItem: {
+        // width will be calculated dynamically
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 10,
+        // marginHorizontal: 5, // Removed as paddingHorizontal on scrollViewContent and dynamic width handles spacing
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    loadingText: {
+        marginTop: 10,
+        fontSize: 16,
+        color: '#555',
     },
 });

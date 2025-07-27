@@ -10,6 +10,15 @@ import {
   User2Icon
 } from "lucide-react";
 
+// Helper function to count items separated by semicolon
+const countSemicolonSeparatedItems = (text) => {
+    if (!text) {
+        return 0;
+    }
+    const items = String(text).split(';').map(item => item.trim()).filter(item => item !== '');
+    return items.length;
+};
+
 const dashboardItems = [
   { key: "Proses", label: "Proses", icon: Layers, color: "bg-blue-100 text-blue-700", table: "Proses" },
   { key: "SubProses", label: "Sub-Proses", icon: Layers, color: "bg-blue-100 text-blue-700", table: "SubProses" },
@@ -21,7 +30,6 @@ const dashboardItems = [
   { key: "Hierarki", label: "Hierarki", icon: ListCheck, color: "bg-purple-100 text-purple-700", table: "Hierarki" },
   { key: "InputHRA", label: "Data HRA", icon: FileText, color: "bg-teal-100 text-teal-700", table: "InputHRA" },
   { key: "AkunManagement", label: "Karyawan", icon: User2Icon, color: "bg-green-100 text-green-700", table: "AkunManagement" },
-
 ];
 
 export default function Dashboard({ logout }) {
@@ -34,8 +42,8 @@ export default function Dashboard({ logout }) {
 
     // Loop semua master table biasa
     for (const item of dashboardItems) {
-      // Skip yang bukan tabel biasa (contoh: total_bahaya)
-      if (!item.table) continue;
+      // Skip yang bukan tabel biasa (contoh: total_bahaya, total_risiko)
+      if (!item.table || item.key === "total_bahaya" || item.key === "total_risiko") continue;
 
       const { count, error } = await supabase
         .from(item.table)
@@ -44,19 +52,25 @@ export default function Dashboard({ logout }) {
       newCounts[item.key] = error ? 0 : count;
     }
 
-    // Hitung total bahaya & risiko
-    const { count: totalBahaya } = await supabase
+    // Hitung total bahaya & risiko dari InputHRA berdasarkan item yang dipisahkan semicolon
+    const { data: inputHRAData, error: inputHRAError } = await supabase
       .from("InputHRA")
-      .select("*", { count: "exact", head: true })
-      .not("bahaya_kesehatan", "is", null);
+      .select("bahaya_kesehatan, risiko_kesehatan");
 
-    const { count: totalRisiko } = await supabase
-      .from("InputHRA")
-      .select("*", { count: "exact", head: true })
-      .not("risiko_kesehatan", "is", null);
+    let totalBahayaCount = 0;
+    let totalRisikoCount = 0;
 
-    newCounts["total_bahaya"] = totalBahaya || 0;
-    newCounts["total_risiko"] = totalRisiko || 0;
+    if (!inputHRAError && inputHRAData) {
+      inputHRAData.forEach(item => {
+        totalBahayaCount += countSemicolonSeparatedItems(item.bahaya_kesehatan);
+        totalRisikoCount += countSemicolonSeparatedItems(item.risiko_kesehatan);
+      });
+    } else {
+      console.error("Error fetching InputHRA for bahaya/risiko counts:", inputHRAError);
+    }
+
+    newCounts["total_bahaya"] = totalBahayaCount;
+    newCounts["total_risiko"] = totalRisikoCount;
 
     setCounts(newCounts);
   };

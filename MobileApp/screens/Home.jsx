@@ -6,19 +6,28 @@ import {
     Image,
     TouchableOpacity,
     ScrollView,
-    Alert, // Tetap gunakan Alert untuk notifikasi sederhana
+    Alert,
     Modal
 } from 'react-native';
 import { Ionicons, FontAwesome } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import moment from 'moment';
-import 'moment/locale/id'; // Pastikan locale 'id' dimuat
+import 'moment/locale/id';
 import { supabase } from '../config/supabase';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
 
 console.log('Home Screen');
+
+// Helper function to count items separated by semicolon
+const countSemicolonSeparatedItems = (text) => {
+    if (!text) {
+        return 0;
+    }
+    const items = String(text).split(';').map(item => item.trim()).filter(item => item !== '');
+    return items.length;
+};
 
 export default function HomeScreen({ navigation }) {
     const [userName, setUserName] = useState('');
@@ -38,67 +47,6 @@ export default function HomeScreen({ navigation }) {
         return () => clearInterval(timer);
     }, []);
 
-    // Fetch General HRA (total risiko dari semua InputHRA)
-    useEffect(() => {
-        const fetchGeneralHRA = async () => {
-            const { data, error } = await supabase
-                .from("InputHRA")
-                .select("id"); // Hanya perlu ID untuk menghitung jumlah baris
-
-            if (!error && data) {
-                // Mengubah perhitungan: sekarang hanya menghitung jumlah baris
-                const total = data.length;
-                setTotalRisiko(total);
-            } else {
-                console.log("Fetch General InputHRA error:", error);
-            }
-        };
-        fetchGeneralHRA();
-    }, []); // Runs once on component mount
-
-    // Load user data from AsyncStorage and potentially fetch user details from AkunManagement
-    // This effect should also trigger fetchPersonalHRA once user data is available
-    useEffect(() => {
-        const loadUserAndFetchPersonalHRA = async () => {
-            try {
-                const rawUser = await AsyncStorage.getItem('user');
-                if (!rawUser) {
-                    console.error("User data tidak ditemukan di storage");
-                    return;
-                }
-
-                const parsedUser = JSON.parse(rawUser);
-                setUser(parsedUser); // Set user dari AsyncStorage
-
-                // Ambil nama dari AkunManagement atau fallback ke user_metadata/email
-                const { data: akunData, error: akunError } = await supabase
-                    .from("AkunManagement")
-                    .select("nama_lengkap") // Asumsi ada kolom 'nama_lengkap' di AkunManagement
-                    .eq("user_id", parsedUser.id)
-                    .maybeSingle();
-
-                if (akunError) {
-                    console.error("Supabase AkunManagement error:", akunError);
-                    setUserName(parsedUser.user_metadata?.nama || parsedUser.email || 'User');
-                } else if (akunData && akunData.nama_lengkap) { // Check for nama_lengkap
-                    setUserName(akunData.nama_lengkap);
-                } else {
-                    setUserName(parsedUser.user_metadata?.nama || parsedUser.email || 'User');
-                }
-
-                // *** Trigger fetchPersonalHRA immediately after user data is loaded ***
-                if (parsedUser.id) {
-                    fetchPersonalHRA(parsedUser.id);
-                }
-
-            } catch (error) {
-                console.error("Failed to load user:", error);
-            }
-        };
-        // Panggil fungsi ini hanya sekali saat komponen dimuat
-        loadUserAndFetchPersonalHRA();
-    }, [fetchPersonalHRA]); // fetchPersonalHRA adalah dependency karena dipanggil di sini
-
     const getWIBTimestamp = () => {
         const date = new Date();
         return date;
@@ -112,77 +60,26 @@ export default function HomeScreen({ navigation }) {
         return moment().utc().format('YYYY-MM-DD');
     };
 
-    const fetchAttendance = useCallback(async () => {
-        try {
-            const raw = await AsyncStorage.getItem("user");
-            if (!raw) {
-                console.warn("User data not found in AsyncStorage during fetchAttendance.");
-                setClockInTime(null);
-                setClockOutTime(null);
-                return;
-            }
-            const parsedUser = JSON.parse(raw);
-            const user_id = parsedUser.id;
+    // Fetch General HRA (total risiko dari semua InputHRA)
+    const fetchGeneralHRA = useCallback(async () => {
+        console.log("DEBUG: fetchGeneralHRA called");
+        const { data, error } = await supabase
+            .from("InputHRA")
+            .select("bahaya_kesehatan, risiko_kesehatan"); // Ambil kedua kolom ini
 
-            if (!user_id) {
-                console.error("User ID not found in parsed user data.");
-                setClockInTime(null);
-                setClockOutTime(null);
-                return;
-            }
-
-            const today = getToday();
-
-            const { data, error } = await supabase
-                .from("AkunManagement")
-                .select("id, tanggal_absen, clock_in, clock_out")
-                .eq("user_id", user_id)
-                .maybeSingle();
-
-            console.log("Fetched Supabase data for attendance:", data);
-            console.log("Supabase error for attendance:", error);
-
-            if (error && error.code !== 'PGRST116') {
-                console.error("Error fetching attendance from Supabase:", error);
-                setClockInTime(null);
-                setClockOutTime(null);
-                return;
-            }
-
-            if (data) {
-                const storedDate = moment.utc(data.tanggal_absen).format('YYYY-MM-DD');
-
-                if (storedDate === today) {
-                    setClockInTime(data.clock_in ? formatTime(data.clock_in) : null);
-                    setClockOutTime(data.clock_out ? formatTime(data.clock_out) : null);
-                } else {
-                    console.log("Detected new day, resetting attendance data in DB.");
-                    const { error: updateError } = await supabase
-                        .from("AkunManagement")
-                        .update({
-                            tanggal_absen: today,
-                            clock_in: null,
-                            clock_out: null
-                        })
-                        .eq("user_id", user_id);
-
-                    if (updateError) {
-                        console.error("Error resetting attendance for new day:", updateError);
-                    }
-                    setClockInTime(null);
-                    setClockOutTime(null);
-                }
-            } else {
-                setClockInTime(null);
-                setClockOutTime(null);
-            }
-
-        } catch (error) {
-            console.error("Error in fetchAttendance:", error);
-            setClockInTime(null);
-            setClockOutTime(null);
+        if (!error && data) {
+            let totalGeneralCount = 0;
+            data.forEach(item => {
+                totalGeneralCount += countSemicolonSeparatedItems(item.bahaya_kesehatan);
+                totalGeneralCount += countSemicolonSeparatedItems(item.risiko_kesehatan);
+            });
+            setTotalRisiko(totalGeneralCount);
+            console.log("DEBUG: Total General Risk calculated:", totalGeneralCount);
+        } else {
+            console.error("Fetch General InputHRA error:", error);
+            setTotalRisiko(0);
         }
-    }, []);
+    }, []); // Tidak ada dependensi karena hanya mengambil semua data
 
     // Fetch Personal HRA (Personal Risk)
     const fetchPersonalHRA = useCallback(async (currentUserId) => {
@@ -228,11 +125,10 @@ export default function HomeScreen({ navigation }) {
             return;
         }
 
-        // 2. Fetch the bahaya_kesehatan from InputHRA for these IDs
-        // Kita hanya perlu memastikan ada entri, tidak perlu menjumlahkan nilai 'bahaya_kesehatan'
+        // 2. Fetch the bahaya_kesehatan and risiko_kesehatan from InputHRA for these IDs
         const { data: inputHraData, error: inputHraError } = await supabase
             .from('InputHRA')
-            .select('id') // Hanya perlu ID untuk menghitung jumlahnya
+            .select('bahaya_kesehatan, risiko_kesehatan') // Ambil kedua kolom ini
             .in('id', inputHraIds);
 
         if (inputHraError) {
@@ -244,11 +140,59 @@ export default function HomeScreen({ navigation }) {
         console.log("DEBUG: InputHRA data for personal HRA (for counting):", inputHraData);
 
         // 3. Calculate total personal risk by counting the number of identified risks
-        // Sekarang hanya menghitung jumlah baris yang ditemukan
-        const calculatedPersonalRisk = inputHraData.length;
+        let calculatedPersonalRisk = 0;
+        inputHraData.forEach(item => {
+            calculatedPersonalRisk += countSemicolonSeparatedItems(item.bahaya_kesehatan);
+            calculatedPersonalRisk += countSemicolonSeparatedItems(item.risiko_kesehatan);
+        });
+
         setPersonalRisiko(calculatedPersonalRisk);
         console.log('DEBUG: Personal HRA calculated (count):', calculatedPersonalRisk);
-    }, []);
+        console.log('Risiko Kesehatan:', item.risiko_kesehatan);
+        console.log('Risiko Kesehatan:', item.bahaya_kesehatan);
+    }, []); // fetchPersonalHRA depends on countSemicolonSeparatedItems which is global now
+
+    // Load user data from AsyncStorage and potentially fetch user details from AkunManagement
+    useEffect(() => {
+        const loadUserAndFetchPersonalHRA = async () => {
+            try {
+                const rawUser = await AsyncStorage.getItem('user');
+                if (!rawUser) {
+                    console.error("User data tidak ditemukan di storage");
+                    return;
+                }
+
+                const parsedUser = JSON.parse(rawUser);
+                setUser(parsedUser); // Set user dari AsyncStorage
+
+                // Ambil nama dari AkunManagement atau fallback ke user_metadata/email
+                const { data: akunData, error: akunError } = await supabase
+                    .from("AkunManagement")
+                    .select("nama_lengkap") // Asumsi ada kolom 'nama_lengkap' di AkunManagement
+                    .eq("user_id", parsedUser.id)
+                    .maybeSingle();
+
+                if (akunError) {
+                    console.error("Supabase AkunManagement error:", akunError);
+                    setUserName(parsedUser.user_metadata?.nama || parsedUser.email || 'User');
+                } else if (akunData && akunData.nama_lengkap) { // Check for nama_lengkap
+                    setUserName(akunData.nama_lengkap);
+                } else {
+                    setUserName(parsedUser.user_metadata?.nama || parsedUser.email || 'User');
+                }
+
+                // *** Trigger fetchPersonalHRA immediately after user data is loaded ***
+                if (parsedUser.id) {
+                    fetchPersonalHRA(parsedUser.id);
+                }
+
+            } catch (error) {
+                console.error("Failed to load user:", error);
+            }
+        };
+        // Panggil fungsi ini hanya sekali saat komponen dimuat
+        loadUserAndFetchPersonalHRA();
+    }, [fetchPersonalHRA]); // fetchPersonalHRA adalah dependency karena dipanggil di sini
 
     const handleClockIn = async () => {
         try {
@@ -376,16 +320,88 @@ export default function HomeScreen({ navigation }) {
         navigation.navigate('JobSurvey');
     };
 
+    const fetchAttendance = useCallback(async () => {
+        try {
+            const raw = await AsyncStorage.getItem("user");
+            if (!raw) {
+                console.warn("User data not found in AsyncStorage during fetchAttendance.");
+                setClockInTime(null);
+                setClockOutTime(null);
+                return;
+            }
+            const parsedUser = JSON.parse(raw);
+            const user_id = parsedUser.id;
+
+            if (!user_id) {
+                console.error("User ID not found in parsed user data.");
+                setClockInTime(null);
+                setClockOutTime(null);
+                return;
+            }
+
+            const today = getToday();
+
+            const { data, error } = await supabase
+                .from("AkunManagement")
+                .select("id, tanggal_absen, clock_in, clock_out")
+                .eq("user_id", user_id)
+                .maybeSingle();
+
+            console.log("Fetched Supabase data for attendance:", data);
+            console.log("Supabase error for attendance:", error);
+
+            if (error && error.code !== 'PGRST116') {
+                console.error("Error fetching attendance from Supabase:", error);
+                setClockInTime(null);
+                setClockOutTime(null);
+                return;
+            }
+
+            if (data) {
+                const storedDate = moment.utc(data.tanggal_absen).format('YYYY-MM-DD');
+
+                if (storedDate === today) {
+                    setClockInTime(data.clock_in ? formatTime(data.clock_in) : null);
+                    setClockOutTime(data.clock_out ? formatTime(data.clock_out) : null);
+                } else {
+                    console.log("Detected new day, resetting attendance data in DB.");
+                    const { error: updateError } = await supabase
+                        .from("AkunManagement")
+                        .update({
+                            tanggal_absen: today,
+                            clock_in: null,
+                            clock_out: null
+                        })
+                        .eq("user_id", user_id);
+
+                    if (updateError) {
+                        console.error("Error resetting attendance for new day:", updateError);
+                    }
+                    setClockInTime(null);
+                    setClockOutTime(null);
+                }
+            } else {
+                setClockInTime(null);
+                setClockOutTime(null);
+            }
+
+        } catch (error) {
+            console.error("Error in fetchAttendance:", error);
+            setClockInTime(null);
+            setClockOutTime(null);
+        }
+    }, []);
+
+
     // useFocusEffect untuk memanggil fetchAttendance dan fetchPersonalHRA saat layar fokus
     useFocusEffect(
         useCallback(() => {
             fetchAttendance();
-            // fetchPersonalHRA sudah dipanggil oleh useEffect loadUserAndFetchPersonalHRA
-            // Ini adalah fallback atau untuk refresh saat kembali ke layar.
-            if (user?.id) {
+            if (user?.id) { // Pastikan user.id tersedia sebelum memanggil fetchPersonalHRA
                 fetchPersonalHRA(user.id);
             }
-        }, [fetchAttendance, fetchPersonalHRA, user]) // Tambahkan dependensi
+            fetchGeneralHRA(); // Panggil juga general HRA saat fokus
+        }, [fetchAttendance, fetchPersonalHRA, fetchGeneralHRA, user]) // Tambahkan dependensi
     );
 
 
@@ -740,7 +756,7 @@ const styles = StyleSheet.create({
         marginTop: 12,
         alignItems: 'center',
         margin: 10,
-        padding: 150,
+        paddingHorizontal: 20, // Added reasonable horizontal padding
     },
 
     jobSurveyText: {
